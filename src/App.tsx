@@ -1,22 +1,29 @@
 import { useState } from 'react';
 import { useFileUpload } from './hooks/useFileUpload';
+import { useDarkMode } from './hooks/useDarkMode';
 import TransactionTable from './components/TransactionTable';
 import BudgetVisualizer from './components/BudgetVisualizer';
 import MonthlyOverview from './components/MonthlyOverview';
 import SmartInsights from './components/SmartInsights';
 import BudgetGoals from './components/BudgetGoals';
 import AddTransaction from './components/AddTransaction';
+import SmartBudgetGenerator from './components/SmartBudgetGenerator';
+import SearchBar from './components/SearchBar';
+import CategoryFilter from './components/CategoryFilter';
 import AIChat from './components/AIChat';
+import { exportToPDF } from './utils/exportToPDF';
 
 function App() {
   const { transactions, isLoading, progress, status, handleFileSelect, setTransactions } = useFileUpload();
+  const { darkMode, setDarkMode } = useDarkMode();
+  
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const [showAIChat, setShowAIChat] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
 
-  const displayedTransactions = selectedCategory 
-    ? transactions.filter(t => t.category === selectedCategory)
-    : transactions;
+  const filteredTransactions = transactions
+    .filter(t => !selectedCategory || t.category === selectedCategory)
+    .filter(t => t.description.toLowerCase().includes(searchTerm.toLowerCase()));
 
   const handleCategoryClick = (category: string) => {
     setSelectedCategory(prev => prev === category ? null : category);
@@ -38,7 +45,7 @@ function App() {
     setTransactions(sample);
   };
 
-  const exportToCSV = () => {
+  const exportCSV = () => {
     if (transactions.length === 0) return;
     const headers = ['Dato', 'Beskrivelse', 'Beløb'];
     const csvRows = [headers.join(','), ...transactions.map(t => [t.date, `"${t.description}"`, t.amount].join(','))];
@@ -48,8 +55,6 @@ function App() {
     link.download = `min-oekonomi-${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
   };
-
-  const printReport = () => window.print();
 
   const handleDragOver = (e: React.DragEvent) => e.preventDefault();
   const handleDrop = (e: React.DragEvent) => {
@@ -76,13 +81,16 @@ function App() {
               
               {transactions.length > 0 && (
                 <>
-                  <button onClick={exportToCSV} className="px-4 py-2 text-sm font-medium bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-2xl transition">CSV</button>
-                  <button onClick={printReport} className="px-4 py-2 text-sm font-medium bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded-2xl transition">Gem som PDF</button>
+                  <button onClick={exportCSV} className="px-4 py-2 text-sm font-medium bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-2xl transition">CSV</button>
+                  <button onClick={() => exportToPDF(transactions)} className="px-4 py-2 text-sm font-medium bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded-2xl transition">Gem som PDF</button>
                   <button onClick={() => setTransactions([])} className="px-4 py-2 text-sm font-medium bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 rounded-2xl transition">Ryd data</button>
                 </>
               )}
               
-              <button onClick={() => setDarkMode(!darkMode)} className="px-4 py-2 text-sm font-medium bg-gray-100 dark:bg-slate-800 rounded-2xl transition">
+              <button 
+                onClick={() => setDarkMode(!darkMode)} 
+                className="px-4 py-2 text-sm font-medium bg-gray-100 dark:bg-slate-800 rounded-2xl transition"
+              >
                 {darkMode ? '☀️ Lys' : '🌙 Mørk'}
               </button>
             </div>
@@ -114,19 +122,29 @@ function App() {
             </label>
           </div>
 
-          {/* Quick Summary */}
+          {/* Quick Summary + Search */}
           {transactions.length > 0 && (
-            <div className="bg-white dark:bg-slate-900 rounded-3xl shadow p-6 mb-8 flex justify-between items-center border border-gray-100 dark:border-slate-800">
-              <div>
-                <div className="text-sm text-gray-500">Samlet saldo</div>
-                <div className={`text-4xl font-bold ${totalBalance >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                  {totalBalance.toLocaleString('da-DK')} kr
+            <>
+              <div className="bg-white dark:bg-slate-900 rounded-3xl shadow p-6 mb-6 flex justify-between items-center border border-gray-100 dark:border-slate-800">
+                <div>
+                  <div className="text-sm text-gray-500">Samlet saldo</div>
+                  <div className={`text-4xl font-bold ${totalBalance >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                    {totalBalance.toLocaleString('da-DK')} kr
+                  </div>
+                </div>
+                <div className="text-right text-sm">
+                  <div>Transaktioner: <span className="font-semibold">{transactions.length}</span></div>
                 </div>
               </div>
-              <div className="text-right text-sm">
-                <div>Transaktioner: <span className="font-semibold">{transactions.length}</span></div>
-              </div>
-            </div>
+
+              <SearchBar searchTerm={searchTerm} onSearchChange={setSearchTerm} />
+              
+              <CategoryFilter 
+                transactions={transactions} 
+                selectedCategory={selectedCategory} 
+                onCategoryClick={handleCategoryClick} 
+              />
+            </>
           )}
 
           {/* Progress */}
@@ -143,7 +161,7 @@ function App() {
           {transactions.length > 0 && (
             <div className="space-y-12">
               <TransactionTable 
-                transactions={displayedTransactions} 
+                transactions={filteredTransactions} 
                 onCategoryFilter={handleCategoryClick}
                 onDelete={(index) => {
                   const newList = [...transactions];
@@ -161,6 +179,7 @@ function App() {
               <MonthlyOverview transactions={transactions} />
               <SmartInsights transactions={transactions} />
               <BudgetGoals transactions={transactions} />
+              <SmartBudgetGenerator transactions={transactions} onAskAI={() => setShowAIChat(true)} />
               <AddTransaction onAdd={(t) => setTransactions([...transactions, t])} />
             </div>
           )}
