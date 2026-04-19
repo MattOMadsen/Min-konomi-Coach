@@ -37,10 +37,60 @@ export default function MonthlyOverview({ transactions }: Props) {
 
   if (monthlyData.length === 0) return null;
 
+  // Beregn max værdi til grafen
+  const maxBalance = Math.max(...monthlyData.map(d => Math.abs(d.balance)), 1000);
+
   return (
     <div className="bg-white rounded-3xl shadow-xl p-8 border border-gray-100">
-      <h3 className="text-2xl font-bold mb-6">📅 Månedlig Oversigt</h3>
+      <h3 className="text-2xl font-bold mb-6">📅 Månedlig Oversigt + Trend</h3>
 
+      {/* Linjegraf */}
+      <div className="mb-8 h-48 relative">
+        <svg viewBox="0 0 600 180" className="w-full h-full">
+          {/* Grid lines */}
+          {[0, 1, 2, 3, 4].map(i => (
+            <line 
+              key={i}
+              x1="40" 
+              y1={30 + i * 30} 
+              x2="580" 
+              y2={30 + i * 30} 
+              stroke="#e2e8f0" 
+              strokeWidth="1" 
+            />
+          ))}
+
+          {/* Linje */}
+          <polyline
+            fill="none"
+            stroke="#10b981"
+            strokeWidth="3"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+            points={monthlyData.map((d, i) => {
+              const x = 60 + (i * (520 / Math.max(monthlyData.length - 1, 1)));
+              const y = 150 - ((d.balance / maxBalance) * 110);
+              return `${x},${y}`;
+            }).join(' ')}
+          />
+
+          {/* Punkter */}
+          {monthlyData.map((d, i) => {
+            const x = 60 + (i * (520 / Math.max(monthlyData.length - 1, 1)));
+            const y = 150 - ((d.balance / maxBalance) * 110);
+            return (
+              <g key={i}>
+                <circle cx={x} cy={y} r="5" fill="#10b981" />
+                <text x={x} y={y - 12} textAnchor="middle" fontSize="11" fill="#64748b">
+                  {d.balance.toLocaleString('da-DK')}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+
+      {/* Månedlig oversigt */}
       <div className="space-y-4">
         {monthlyData.map(({ month, income, expenses, balance, count }) => (
           <div key={month} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl">

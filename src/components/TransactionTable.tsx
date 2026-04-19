@@ -4,10 +4,17 @@ interface Props {
   transactions: Transaction[];
   onCategoryFilter?: (category: string) => void;
   onDelete?: (index: number) => void;
-  onEdit?: (index: number) => void;   // ← Ny prop
+  onEdit?: (index: number) => void;
+  onDuplicate?: (index: number) => void;   // Ny prop
 }
 
-export default function TransactionTable({ transactions, onCategoryFilter, onDelete, onEdit }: Props) {
+export default function TransactionTable({ 
+  transactions, 
+  onCategoryFilter, 
+  onDelete, 
+  onEdit, 
+  onDuplicate 
+}: Props) {
   const totalIn = transactions.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0);
   const totalOut = transactions.filter(t => t.amount < 0).reduce((sum, t) => sum + Math.abs(t.amount), 0);
   const balance = totalIn - totalOut;
@@ -34,7 +41,7 @@ export default function TransactionTable({ transactions, onCategoryFilter, onDel
               <th className="text-left py-4 px-5 font-medium text-gray-600">Dato</th>
               <th className="text-left py-4 px-5 font-medium text-gray-600">Beskrivelse</th>
               <th className="text-right py-4 px-5 font-medium text-gray-600">Beløb</th>
-              <th className="w-20 text-center">Handling</th>
+              <th className="w-28 text-center">Handling</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -50,6 +57,15 @@ export default function TransactionTable({ transactions, onCategoryFilter, onDel
                   </td>
                   <td className="py-4 px-2">
                     <div className="flex gap-1 justify-center">
+                      {onDuplicate && (
+                        <button 
+                          onClick={() => onDuplicate(index)}
+                          className="opacity-0 group-hover:opacity-100 text-blue-600 hover:text-blue-700 p-2 transition"
+                          title="Duplikér"
+                        >
+                          📋
+                        </button>
+                      )}
                       {onEdit && (
                         <button 
                           onClick={() => onEdit(index)}
