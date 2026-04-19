@@ -27,6 +27,8 @@ interface Props {
   onCloseEditModal: () => void;
   onSaveEdit: (updated: any, index: number) => void;
   setTransactions: (transactions: any[]) => void;
+  onMonthClick?: (month: string) => void;
+  selectedMonth?: string | null;
 }
 
 export default function MainContent({
@@ -47,6 +49,8 @@ export default function MainContent({
   onCloseEditModal,
   onSaveEdit,
   setTransactions,
+  onMonthClick,
+  selectedMonth,
 }: Props) {
   return (
     <>
@@ -94,7 +98,12 @@ export default function MainContent({
           
           <RecurringTransactions transactions={transactions} />
           
-          <MonthlyOverview transactions={transactions} />
+          <MonthlyOverview 
+            transactions={transactions} 
+            onMonthClick={onMonthClick} 
+            selectedMonth={selectedMonth} 
+          />
+          
           <SmartInsights transactions={transactions} />
           <BudgetGoals transactions={transactions} />
           <SmartBudgetGenerator transactions={transactions} onAskAI={onAskAI} />

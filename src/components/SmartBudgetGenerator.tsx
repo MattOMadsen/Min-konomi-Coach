@@ -12,7 +12,6 @@ export default function SmartBudgetGenerator({ transactions, onAskAI }: Props) {
     if (transactions.length === 0) return null;
 
     const categoryMap = new Map<string, number>();
-    const categoryCount = new Map<string, number>(); // Antal køb pr. kategori
     let totalIncome = 0;
     let totalExpenses = 0;
 
@@ -22,28 +21,20 @@ export default function SmartBudgetGenerator({ transactions, onAskAI }: Props) {
         totalExpenses += Math.abs(t.amount);
         const cat = categorizeTransaction(t.description);
         categoryMap.set(cat, (categoryMap.get(cat) || 0) + Math.abs(t.amount));
-        categoryCount.set(cat, (categoryCount.get(cat) || 0) + 1);
       }
     });
 
-    const monthlyIncome = Math.round(totalIncome / 3);
-    const monthlyExpenses = Math.round(totalExpenses / 3);
+    // Antal måneder i dataen
+    const months = new Set(transactions.map(t => t.date.substring(0, 7)));
+    const numberOfMonths = Math.max(1, months.size);
 
-    // === REALISTISKE BEREGNINGER ===
-    const takeawayAmount = categoryMap.get('Takeaway') || 0;
-    const takeawayCount = categoryCount.get('Takeaway') || 0;
-    const avgTakeawayPrice = takeawayCount > 0 ? Math.round(takeawayAmount / takeawayCount) : 85;
-    const monthlyTakeawayOrders = Math.round(takeawayCount / 3);
+    const monthlyIncome = Math.round(totalIncome / numberOfMonths);
+    const monthlyExpenses = Math.round(totalExpenses / numberOfMonths);
 
-    const cafeAmount = categoryMap.get('Café') || 0;
-    const cafeCount = categoryCount.get('Café') || 0;
-    const avgCafePrice = cafeCount > 0 ? Math.round(cafeAmount / cafeCount) : 52;
-    const monthlyCafeVisits = Math.round(cafeCount / 3);
-
-    // Foreslået budget (med 12% buffer)
+    // Foreslået månedsbudget (med 12% buffer)
     const suggestedBudget: Record<string, number> = {};
     categoryMap.forEach((amount, cat) => {
-      const monthlyAvg = Math.round(amount / 3);
+      const monthlyAvg = Math.round(amount / numberOfMonths);
       suggestedBudget[cat] = Math.round(monthlyAvg * 1.12);
     });
 
@@ -52,35 +43,23 @@ export default function SmartBudgetGenerator({ transactions, onAskAI }: Props) {
     const recommendedSavings = Math.max(2000, Math.round(currentSavings * 0.7));
     const yearlySavings = recommendedSavings * 12;
 
-    // Konkrete, data-baserede anbefalinger
+    // Konkrete anbefalinger
     const recommendations: string[] = [];
 
-    if (monthlyTakeawayOrders > 6 && avgTakeawayPrice > 70) {
-      const potentialSaving = Math.round(monthlyTakeawayOrders * avgTakeawayPrice * 0.35);
-      recommendations.push(
-        `Du køber takeaway ${monthlyTakeawayOrders} gange om måneden til gennemsnitligt ${avgTakeawayPrice} kr. ` +
-        `Hvis du reducerer til ${Math.max(4, Math.floor(monthlyTakeawayOrders * 0.65))} gange, sparer du ca. ${potentialSaving} kr/måned.`
-      );
+    const takeawayAmount = categoryMap.get('Takeaway') || 0;
+    const monthlyTakeaway = Math.round(takeawayAmount / numberOfMonths);
+    if (monthlyTakeaway > 1200) {
+      recommendations.push(`Du bruger ${monthlyTakeaway} kr/måned på Takeaway. Reducer med 30% og spar ${Math.round(monthlyTakeaway * 0.3)} kr.`);
     }
 
-    if (monthlyCafeVisits > 5 && avgCafePrice > 45) {
-      const potentialSaving = Math.round(monthlyCafeVisits * avgCafePrice * 0.45);
-      recommendations.push(
-        `Du besøger café ${monthlyCafeVisits} gange om måneden til ${avgCafePrice} kr i gennemsnit. ` +
-        `Ved at lave kaffe hjemme 4 dage om ugen kan du spare ca. ${potentialSaving} kr/måned.`
-      );
-    }
-
-    const subscriptionAmount = categoryMap.get('Abonnementer') || 0;
-    const monthlySubs = Math.round(subscriptionAmount / 3);
-    if (monthlySubs > 350) {
-      recommendations.push(
-        `Du bruger ${monthlySubs} kr/måned på abonnementer. Prøv at gennemgå dem – mange bliver glemt.`
-      );
+    const cafeAmount = categoryMap.get('Café') || 0;
+    const monthlyCafe = Math.round(cafeAmount / numberOfMonths);
+    if (monthlyCafe > 500) {
+      recommendations.push(`Du bruger ${monthlyCafe} kr/måned på café. Lav kaffe hjemme og spar ca. ${Math.round(monthlyCafe * 0.4)} kr.`);
     }
 
     if (recommendations.length === 0) {
-      recommendations.push("Du har en rigtig sund økonomi. Fortsæt det gode arbejde!");
+      recommendations.push("Du har en rigtig god balance. Fortsæt det gode arbejde!");
     }
 
     return {
@@ -90,10 +69,6 @@ export default function SmartBudgetGenerator({ transactions, onAskAI }: Props) {
       recommendedSavings,
       yearlySavings,
       recommendations,
-      avgTakeawayPrice,
-      monthlyTakeawayOrders,
-      avgCafePrice,
-      monthlyCafeVisits,
     };
   }, [transactions]);
 
@@ -104,7 +79,7 @@ export default function SmartBudgetGenerator({ transactions, onAskAI }: Props) {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
         <div>
           <h3 className="text-3xl font-bold">🧠 Smart Budget Generator</h3>
-          <p className="text-emerald-700 dark:text-emerald-400 mt-1">Realistisk budget baseret på dine egne vaner</p>
+          <p className="text-emerald-700 dark:text-emerald-400 mt-1">Personligt budgetforslag baseret på dine vaner</p>
         </div>
         <button 
           onClick={onAskAI}
@@ -138,7 +113,7 @@ export default function SmartBudgetGenerator({ transactions, onAskAI }: Props) {
         </div>
       </div>
 
-      {/* Foreslået budget */}
+      {/* Foreslået månedsbudget */}
       <div className="mb-8">
         <h4 className="font-semibold text-xl mb-4">Foreslået månedsbudget</h4>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -151,9 +126,9 @@ export default function SmartBudgetGenerator({ transactions, onAskAI }: Props) {
         </div>
       </div>
 
-      {/* Data-baserede anbefalinger */}
+      {/* Anbefalinger */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-emerald-100 dark:border-emerald-800">
-        <h4 className="font-semibold text-xl mb-4">💡 Personlige anbefalinger baseret på dine vaner</h4>
+        <h4 className="font-semibold text-xl mb-4">💡 Personlige anbefalinger</h4>
         <div className="space-y-4">
           {analysis.recommendations.map((rec, index) => (
             <div key={index} className="flex gap-3 p-4 bg-emerald-50 dark:bg-emerald-950 rounded-2xl">
@@ -162,10 +137,6 @@ export default function SmartBudgetGenerator({ transactions, onAskAI }: Props) {
             </div>
           ))}
         </div>
-      </div>
-
-      <div className="mt-6 text-center text-sm text-emerald-700 dark:text-emerald-400">
-        Alle tal er beregnet ud fra dine faktiske transaktioner • Opdateres automatisk når du uploader nye filer
       </div>
     </div>
   );

@@ -28,15 +28,26 @@ export default function SmartInsights({ transactions }: Props) {
   const getAdvice = (category: string): string => {
     const lower = category.toLowerCase();
 
-    if (lower.includes('takeaway')) return 'Prøv at lave mad hjemme 3-4 aftener om ugen';
-    if (lower.includes('dagligvarer')) return 'Lav indkøbsliste og køb ind én gang om ugen';
-    if (lower.includes('café') || lower.includes('coffee')) return 'Lav kaffe hjemme – spar 800-1500 kr/måned';
-    if (lower.includes('benzin')) return 'Overvej samkørsel eller cykel på korte ture';
-    if (lower.includes('abonnement')) return 'Gennemgå dine abonnementer – mange bliver glemt';
-    if (lower.includes('tøj') || lower.includes('pleje')) return 'Køb kun når det er nødvendigt';
+    if (lower.includes('husleje') || lower.includes('leje')) {
+      return 'Husleje er en fast udgift. Overvej om du kan finde en billigere bolig på sigt.';
+    }
+    if (lower.includes('takeaway')) {
+      return 'Prøv at lave mad hjemme 3-4 aftener om ugen – det kan spare dig mange penge.';
+    }
+    if (lower.includes('dagligvarer')) {
+      return 'Lav indkøbsliste og køb ind én gang om ugen for at undgå impulskøb.';
+    }
+    if (lower.includes('café') || lower.includes('coffee')) {
+      return 'Lav kaffe hjemme – det kan spare dig 800-1500 kr om måneden.';
+    }
+    if (lower.includes('benzin')) {
+      return 'Overvej samkørsel eller cykel på korte ture.';
+    }
+    if (lower.includes('abonnement')) {
+      return 'Gennemgå dine abonnementer – mange bliver glemt og brugt sjældent.';
+    }
     
-    // Undgå dårlige råd som "spar på husleje"
-    return 'Overvej om dette er en fast eller variabel udgift';
+    return 'Overvej om dette er en fast eller variabel udgift.';
   };
 
   return (

@@ -18,24 +18,35 @@ function App() {
 
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   const [showAIChat, setShowAIChat] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<{ transaction: Transaction; index: number } | null>(null);
 
-  const filteredTransactions = dateFilteredTransactions
+  // Filtrering
+  let filteredTransactions = dateFilteredTransactions
     .filter(t => !selectedCategory || t.category === selectedCategory)
     .filter(t => t.description.toLowerCase().includes(searchTerm.toLowerCase()));
+
+  if (selectedMonth) {
+    filteredTransactions = filteredTransactions.filter(t => t.date.startsWith(selectedMonth));
+  }
 
   const handleCategoryClick = (category: string) => {
     setSelectedCategory(prev => prev === category ? null : category);
   };
 
+  const handleMonthClick = (month: string) => {
+    setSelectedMonth(prev => prev === month ? null : month);
+  };
+
   const resetAllFilters = () => {
     setSearchTerm('');
     setSelectedCategory(null);
+    setSelectedMonth(null);
     resetDateFilter();
   };
 
-  const hasActiveFilters = searchTerm || selectedCategory || activeFilter !== 'all';
+  const hasActiveFilters = searchTerm || selectedCategory || activeFilter !== 'all' || selectedMonth;
 
   const exportFilteredView = () => {
     if (filteredTransactions.length === 0) return;
@@ -155,6 +166,8 @@ function App() {
               setTransactions(newList);
             }}
             setTransactions={setTransactions}
+            onMonthClick={handleMonthClick}
+            selectedMonth={selectedMonth}
           />
         </div>
 

@@ -15,6 +15,12 @@ export default function Navbar({
   onClearData, 
   hasTransactions 
 }: Props) {
+  const handleClearData = () => {
+    if (window.confirm("Er du sikker på, at du vil slette alle transaktioner? Dette kan ikke fortrydes.")) {
+      onClearData();
+    }
+  };
+
   return (
     <nav className="bg-white/80 dark:bg-slate-950/80 backdrop-blur-md border-b sticky top-0 z-50">
       <div className="max-w-6xl mx-auto px-4 sm:px-8 py-4 sm:py-5 flex flex-col sm:flex-row justify-between items-center gap-3">
@@ -31,19 +37,9 @@ export default function Navbar({
               <button onClick={onExportAll} className="px-3 py-2 text-xs sm:text-sm font-medium bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded-2xl transition">Excel (alle)</button>
               <button onClick={onExportFiltered} className="px-3 py-2 text-xs sm:text-sm font-medium bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-2xl transition">Eksporter visning</button>
               <button onClick={onExportPDF} className="px-3 py-2 text-xs sm:text-sm font-medium bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded-2xl transition">PDF</button>
-              <button onClick={onClearData} className="px-3 py-2 text-xs sm:text-sm font-medium bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 rounded-2xl transition">Ryd</button>
+              <button onClick={handleClearData} className="px-3 py-2 text-xs sm:text-sm font-medium bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 rounded-2xl transition">Ryd</button>
             </>
           )}
-          
-          {/* Dark mode toggle midlertidigt slået fra */}
-          {/* 
-          <button 
-            onClick={setDarkMode} 
-            className="px-3 py-2 text-xs sm:text-sm font-medium bg-gray-100 dark:bg-slate-800 rounded-2xl transition"
-          >
-            {darkMode ? '☀️ Lys' : '🌙 Mørk'}
-          </button>
-          */}
         </div>
       </div>
     </nav>

@@ -1,14 +1,15 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { Transaction } from '../types';
 import { categorizeTransaction, getCategoryColor } from '../utils/categorize';
 
 interface Props {
   transactions: Transaction[];
-  onCategoryClick?: (category: string) => void;
   onAskAI?: () => void;
 }
 
-export default function BudgetVisualizer({ transactions, onCategoryClick, onAskAI }: Props) {
+export default function BudgetVisualizer({ transactions, onAskAI }: Props) {
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
   const { categorySpending, totalExpenses, totalIncome } = useMemo(() => {
     const map = new Map<string, number>();
     
@@ -27,134 +28,67 @@ export default function BudgetVisualizer({ transactions, onCategoryClick, onAskA
 
   const balance = totalIncome - totalExpenses;
 
-  // Beregn vinkler til pie chart
-  const total = categorySpending.reduce((sum, [, amount]) => sum + amount, 0);
-  let cumulativeAngle = 0;
-
-  const pieSegments = categorySpending.map(([cat, amount], index) => {
-    const percentage = total > 0 ? (amount / total) * 100 : 0;
-    const angle = (amount / total) * 360;
-    const startAngle = cumulativeAngle;
-    cumulativeAngle += angle;
-
-    const color = getCategoryColor(cat);
-    
-    return {
-      cat,
-      amount,
-      percentage: Math.round(percentage),
-      color,
-      startAngle,
-      endAngle: cumulativeAngle,
-    };
-  });
-
-  // SVG Pie Chart
-  const createPieSlice = (startAngle: number, endAngle: number, color: string) => {
-    const startRad = (startAngle - 90) * (Math.PI / 180);
-    const endRad = (endAngle - 90) * (Math.PI / 180);
-    
-    const x1 = 50 + 40 * Math.cos(startRad);
-    const y1 = 50 + 40 * Math.sin(startRad);
-    const x2 = 50 + 40 * Math.cos(endRad);
-    const y2 = 50 + 40 * Math.sin(endRad);
-    
-    const largeArc = endAngle - startAngle > 180 ? 1 : 0;
-    
-    return `M 50 50 L ${x1} ${y1} A 40 40 0 ${largeArc} 1 ${x2} ${y2} Z`;
-  };
-
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-xl p-6 sm:p-8 border border-gray-100 dark:border-slate-800">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
-        <h2 className="text-2xl sm:text-3xl font-bold">📊 Budget & Udgifter</h2>
-        <div className="text-right">
-          <div className="text-sm text-gray-500">Saldo</div>
-          <div className={`text-3xl sm:text-4xl font-bold ${balance >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-            {balance.toLocaleString('da-DK')} kr
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Pie Chart */}
-        <div className="flex flex-col items-center">
-          <div className="relative w-64 h-64 mb-6">
-            <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-              {pieSegments.map((segment, index) => (
-                <path
-                  key={index}
-                  d={createPieSlice(segment.startAngle, segment.endAngle, segment.color)}
-                  fill={segment.color}
-                  className="cursor-pointer hover:brightness-110 transition-all"
-                  onClick={() => onCategoryClick?.(segment.cat)}
-                />
-              ))}
-              {/* Donut hole */}
-              <circle cx="50" cy="50" r="22" fill="white" className="dark:fill-slate-900" />
-            </svg>
-            
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="text-center">
-                <div className="text-3xl font-bold text-gray-900 dark:text-white">
-                  {totalExpenses.toLocaleString('da-DK')}
-                </div>
-                <div className="text-sm text-gray-500">kr udgifter</div>
-              </div>
+    <>
+      <div className="bg-white rounded-3xl shadow-xl p-8 border border-gray-100">
+        <div className="flex justify-between items-center mb-8">
+          <h2 className="text-3xl font-bold">📊 Budget & Udgifter</h2>
+          <div className="text-right">
+            <div className="text-sm text-gray-500">Saldo</div>
+            <div className={`text-4xl font-bold ${balance >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+              {balance.toLocaleString('da-DK')} kr
             </div>
           </div>
         </div>
 
-        {/* Liste over kategorier */}
         <div className="space-y-4">
           {categorySpending.length > 0 ? (
-            categorySpending.map(([cat, amount], index) => {
+            categorySpending.map(([cat, amount]) => {
               const percent = totalExpenses > 0 ? Math.round((amount / totalExpenses) * 100) : 0;
               const color = getCategoryColor(cat);
               
               return (
                 <div 
-                  key={index} 
-                  onClick={() => onCategoryClick?.(cat)}
-                  className="group flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-800 rounded-2xl cursor-pointer hover:bg-emerald-50 dark:hover:bg-slate-700 transition-all"
+                  key={cat} 
+                  onClick={() => setSelectedCategory(cat)}
+                  className="group cursor-pointer p-4 bg-gray-50 hover:bg-emerald-50 rounded-2xl transition-all"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="w-4 h-4 rounded-full" style={{ backgroundColor: color }}></div>
-                    <span className="font-semibold text-lg">{cat}</span>
+                  <div className="flex justify-between text-sm mb-1.5">
+                    <span className="font-medium flex items-center gap-2">
+                      <span className="w-3 h-3 rounded-full" style={{ backgroundColor: color }}></span>
+                      {cat}
+                    </span>
+                    <span className="font-semibold">{amount.toLocaleString('da-DK')} kr</span>
                   </div>
-                  
-                  <div className="text-right">
-                    <div className="font-bold text-xl">{amount.toLocaleString('da-DK')} kr</div>
-                    <div className="text-sm text-gray-500">{percent}%</div>
+                  <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-2.5 rounded-full transition-all group-hover:brightness-110" style={{ width: `${percent}%`, backgroundColor: color }} />
                   </div>
                 </div>
               );
             })
           ) : (
-            <div className="text-center py-12 text-gray-500">
-              Ingen udgifter at vise endnu
-            </div>
+            <div className="text-center py-12 text-gray-500">Ingen udgifter at vise endnu</div>
           )}
         </div>
       </div>
 
-      {/* Oversigt */}
-      <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-emerald-50 dark:bg-emerald-950 rounded-2xl p-5 text-center">
-          <div className="text-emerald-600 text-sm font-medium">Indtægter</div>
-          <div className="text-2xl font-bold text-emerald-700">+{totalIncome.toLocaleString('da-DK')} kr</div>
-        </div>
-        <div className="bg-red-50 dark:bg-red-950 rounded-2xl p-5 text-center">
-          <div className="text-red-600 text-sm font-medium">Udgifter</div>
-          <div className="text-2xl font-bold text-red-700">-{totalExpenses.toLocaleString('da-DK')} kr</div>
-        </div>
-        <div className="bg-gray-50 dark:bg-slate-800 rounded-2xl p-5 text-center">
-          <div className="text-gray-600 text-sm font-medium">Gns. pr. måned</div>
-          <div className="text-2xl font-bold text-gray-900 dark:text-white">
-            -{Math.round(totalExpenses / 3).toLocaleString('da-DK')} kr
+      {/* Category Detail Modal */}
+      {selectedCategory && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[200]">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden">
+            <div className="bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-4 flex justify-between items-center">
+              <h3 className="text-white font-semibold text-xl">{selectedCategory}</h3>
+              <button onClick={() => setSelectedCategory(null)} className="text-white text-3xl leading-none">×</button>
+            </div>
+
+            <div className="p-6">
+              <div className="text-center py-8">
+                <p className="text-gray-600 dark:text-gray-400">Detaljeret visning for {selectedCategory} kommer snart...</p>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-    </div>
+      )}
+    </>
   );
 }
