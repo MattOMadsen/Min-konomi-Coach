@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useFileUpload } from './hooks/useFileUpload';
 import { useDarkMode } from './hooks/useDarkMode';
+import { useDateFilter } from './hooks/useDateFilter';
 import TransactionTable from './components/TransactionTable';
 import BudgetVisualizer from './components/BudgetVisualizer';
 import MonthlyOverview from './components/MonthlyOverview';
@@ -11,17 +12,23 @@ import SmartBudgetGenerator from './components/SmartBudgetGenerator';
 import SearchBar from './components/SearchBar';
 import CategoryFilter from './components/CategoryFilter';
 import AIChat from './components/AIChat';
+import DateFilter from './components/DateFilter';
+import EditTransactionModal from './components/EditTransactionModal';
 import { exportToPDF } from './utils/exportToPDF';
+import { exportToExcel } from './utils/exportToExcel';
+import type { Transaction } from './types';
 
 function App() {
   const { transactions, isLoading, progress, status, handleFileSelect, setTransactions } = useFileUpload();
   const { darkMode, setDarkMode } = useDarkMode();
-  
+  const { filteredTransactions: dateFilteredTransactions, setDateRange, resetDateFilter, activeFilter } = useDateFilter(transactions);
+
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [showAIChat, setShowAIChat] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState<{ transaction: Transaction; index: number } | null>(null);
 
-  const filteredTransactions = transactions
+  const filteredTransactions = dateFilteredTransactions
     .filter(t => !selectedCategory || t.category === selectedCategory)
     .filter(t => t.description.toLowerCase().includes(searchTerm.toLowerCase()));
 
@@ -30,7 +37,7 @@ function App() {
   };
 
   const loadSampleData = () => {
-    const sample = [
+    const sample: Transaction[] = [
       { date: "2026-03-01", description: "Løn marts", amount: 28500 },
       { date: "2026-03-02", description: "Husleje marts", amount: -9500 },
       { date: "2026-03-05", description: "Netto + Rema", amount: -3200 },
@@ -43,17 +50,6 @@ function App() {
       { date: "2026-03-25", description: "Fødselsdagsgave", amount: -450 },
     ];
     setTransactions(sample);
-  };
-
-  const exportCSV = () => {
-    if (transactions.length === 0) return;
-    const headers = ['Dato', 'Beskrivelse', 'Beløb'];
-    const csvRows = [headers.join(','), ...transactions.map(t => [t.date, `"${t.description}"`, t.amount].join(','))];
-    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `min-oekonomi-${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
   };
 
   const handleDragOver = (e: React.DragEvent) => e.preventDefault();
@@ -81,8 +77,8 @@ function App() {
               
               {transactions.length > 0 && (
                 <>
-                  <button onClick={exportCSV} className="px-4 py-2 text-sm font-medium bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-2xl transition">CSV</button>
-                  <button onClick={() => exportToPDF(transactions)} className="px-4 py-2 text-sm font-medium bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded-2xl transition">Gem som PDF</button>
+                  <button onClick={() => exportToExcel(transactions)} className="px-4 py-2 text-sm font-medium bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded-2xl transition">Excel</button>
+                  <button onClick={() => exportToPDF(transactions)} className="px-4 py-2 text-sm font-medium bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded-2xl transition">PDF</button>
                   <button onClick={() => setTransactions([])} className="px-4 py-2 text-sm font-medium bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 rounded-2xl transition">Ryd data</button>
                 </>
               )}
@@ -122,7 +118,7 @@ function App() {
             </label>
           </div>
 
-          {/* Quick Summary + Search */}
+          {/* Quick Summary + Filters */}
           {transactions.length > 0 && (
             <>
               <div className="bg-white dark:bg-slate-900 rounded-3xl shadow p-6 mb-6 flex justify-between items-center border border-gray-100 dark:border-slate-800">
@@ -138,12 +134,8 @@ function App() {
               </div>
 
               <SearchBar searchTerm={searchTerm} onSearchChange={setSearchTerm} />
-              
-              <CategoryFilter 
-                transactions={transactions} 
-                selectedCategory={selectedCategory} 
-                onCategoryClick={handleCategoryClick} 
-              />
+              <CategoryFilter transactions={transactions} selectedCategory={selectedCategory} onCategoryClick={handleCategoryClick} />
+              <DateFilter onFilterChange={setDateRange} activeFilter={activeFilter} onReset={resetDateFilter} />
             </>
           )}
 
@@ -167,6 +159,10 @@ function App() {
                   const newList = [...transactions];
                   newList.splice(index, 1);
                   setTransactions(newList);
+                }}
+                onEdit={(index) => {
+                  const originalIndex = transactions.findIndex(t => t === filteredTransactions[index]);
+                  setEditingTransaction({ transaction: filteredTransactions[index], index: originalIndex });
                 }}
               />
               
@@ -203,6 +199,19 @@ function App() {
         )}
 
         {showAIChat && <AIChat transactions={transactions} onClose={() => setShowAIChat(false)} />}
+
+        {editingTransaction && (
+          <EditTransactionModal
+            transaction={editingTransaction.transaction}
+            index={editingTransaction.index}
+            onClose={() => setEditingTransaction(null)}
+            onSave={(updated, index) => {
+              const newList = [...transactions];
+              newList[index] = updated;
+              setTransactions(newList);
+            }}
+          />
+        )}
       </div>
     </div>
   );

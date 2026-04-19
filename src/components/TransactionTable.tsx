@@ -4,9 +4,10 @@ interface Props {
   transactions: Transaction[];
   onCategoryFilter?: (category: string) => void;
   onDelete?: (index: number) => void;
+  onEdit?: (index: number) => void;   // ← Ny prop
 }
 
-export default function TransactionTable({ transactions, onCategoryFilter, onDelete }: Props) {
+export default function TransactionTable({ transactions, onCategoryFilter, onDelete, onEdit }: Props) {
   const totalIn = transactions.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0);
   const totalOut = transactions.filter(t => t.amount < 0).reduce((sum, t) => sum + Math.abs(t.amount), 0);
   const balance = totalIn - totalOut;
@@ -33,7 +34,7 @@ export default function TransactionTable({ transactions, onCategoryFilter, onDel
               <th className="text-left py-4 px-5 font-medium text-gray-600">Dato</th>
               <th className="text-left py-4 px-5 font-medium text-gray-600">Beskrivelse</th>
               <th className="text-right py-4 px-5 font-medium text-gray-600">Beløb</th>
-              <th className="w-12"></th>
+              <th className="w-20 text-center">Handling</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -48,14 +49,26 @@ export default function TransactionTable({ transactions, onCategoryFilter, onDel
                     {t.amount >= 0 ? '+' : ''}{t.amount.toLocaleString('da-DK')} kr
                   </td>
                   <td className="py-4 px-2">
-                    {onDelete && (
-                      <button 
-                        onClick={() => onDelete(index)}
-                        className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 p-2 transition"
-                      >
-                        ✕
-                      </button>
-                    )}
+                    <div className="flex gap-1 justify-center">
+                      {onEdit && (
+                        <button 
+                          onClick={() => onEdit(index)}
+                          className="opacity-0 group-hover:opacity-100 text-emerald-600 hover:text-emerald-700 p-2 transition"
+                          title="Rediger"
+                        >
+                          ✏️
+                        </button>
+                      )}
+                      {onDelete && (
+                        <button 
+                          onClick={() => onDelete(index)}
+                          className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 p-2 transition"
+                          title="Slet"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))

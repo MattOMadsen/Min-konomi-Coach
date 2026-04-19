@@ -2,22 +2,31 @@ import { useState, useEffect } from 'react';
 
 export const useDarkMode = () => {
   const [darkMode, setDarkMode] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('darkMode') === 'true' || 
-             (!('darkMode' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    if (typeof window === 'undefined') return false;
+
+    const saved = localStorage.getItem('darkMode');
+    if (saved !== null) {
+      return saved === 'true';
     }
-    return false;
+    // Fallback til systemets indstilling
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
 
   useEffect(() => {
+    const root = document.documentElement;
+
     if (darkMode) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('darkMode', 'true');
+      root.classList.add('dark');
     } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('darkMode', 'false');
+      root.classList.remove('dark');
     }
+
+    localStorage.setItem('darkMode', darkMode.toString());
   }, [darkMode]);
 
-  return { darkMode, setDarkMode };
+  const toggleDarkMode = () => {
+    setDarkMode(prev => !prev);
+  };
+
+  return { darkMode, setDarkMode: toggleDarkMode };
 };
