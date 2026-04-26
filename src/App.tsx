@@ -21,6 +21,10 @@ function App() {
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   const [showAIChat, setShowAIChat] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<{ transaction: Transaction; index: number } | null>(null);
+  
+  // NYE states til bedre AI-integration
+  const [initialAIPrompt, setInitialAIPrompt] = useState<string | null>(null);
+  const [aiPromptSent, setAiPromptSent] = useState(false);
 
   // Filtrering
   let filteredTransactions = dateFilteredTransactions
@@ -70,6 +74,7 @@ function App() {
     handleFileSelect(e.dataTransfer.files);
   };
 
+  // Keyboard shortcut for search
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === '/' && document.activeElement?.tagName !== 'INPUT') {
@@ -85,6 +90,25 @@ function App() {
   const filteredIncome = filteredTransactions.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0);
   const filteredExpenses = Math.abs(filteredTransactions.filter(t => t.amount < 0).reduce((sum, t) => sum + t.amount, 0));
   const filteredBalance = filteredIncome - filteredExpenses;
+
+  // Ny funktion til at åbne AI med valgfrit prompt
+  const handleAskAI = (prompt?: string) => {
+    if (prompt) {
+      setInitialAIPrompt(prompt);
+    }
+    setShowAIChat(true);
+  };
+
+  const handleCloseAIChat = () => {
+    setShowAIChat(false);
+    setInitialAIPrompt(null);
+    setAiPromptSent(false);
+  };
+
+  const handlePromptSent = () => {
+    setAiPromptSent(true);
+    setInitialAIPrompt(null);
+  };
 
   return (
     <div className="light">
@@ -155,9 +179,9 @@ function App() {
               setEditingTransaction({ transaction: filteredTransactions[index], index: originalIndex });
             }}
             onDuplicate={handleDuplicate}
-            onAskAI={() => setShowAIChat(true)}
+            onAskAI={handleAskAI}
             showAIChat={showAIChat}
-            onCloseAIChat={() => setShowAIChat(false)}
+            onCloseAIChat={handleCloseAIChat}
             editingTransaction={editingTransaction}
             onCloseEditModal={() => setEditingTransaction(null)}
             onSaveEdit={(updated, index) => {
@@ -168,12 +192,14 @@ function App() {
             setTransactions={setTransactions}
             onMonthClick={handleMonthClick}
             selectedMonth={selectedMonth}
+            initialAIPrompt={initialAIPrompt}
+            onPromptSent={handlePromptSent}
           />
         </div>
 
         {transactions.length > 0 && (
           <button
-            onClick={() => setShowAIChat(!showAIChat)}
+            onClick={() => handleAskAI()}
             className="fixed bottom-6 right-6 sm:bottom-8 sm:right-8 w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-br from-emerald-600 to-teal-600 text-white rounded-3xl shadow-2xl flex items-center justify-center text-3xl sm:text-4xl hover:scale-110 transition-all z-50"
           >
             💬

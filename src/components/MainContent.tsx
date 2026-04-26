@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import TransactionTable from './TransactionTable';
 import BudgetVisualizer from './BudgetVisualizer';
 import MonthlyOverview from './MonthlyOverview';
@@ -30,6 +29,8 @@ interface Props {
   setTransactions: (transactions: any[]) => void;
   onMonthClick?: (month: string) => void;
   selectedMonth?: string | null;
+  initialAIPrompt?: string | null;
+  onPromptSent?: () => void;
 }
 
 export default function MainContent({
@@ -52,9 +53,12 @@ export default function MainContent({
   setTransactions,
   onMonthClick,
   selectedMonth,
+  initialAIPrompt,
+  onPromptSent,
 }: Props) {
   return (
     <>
+      {/* Progress + Fejlhåndtering */}
       {isLoading && (
         <div className="max-w-md mx-auto mb-8">
           <div className="h-2 bg-gray-200 dark:bg-slate-700 rounded-full overflow-hidden mb-2">
@@ -64,7 +68,7 @@ export default function MainContent({
         </div>
       )}
 
-      {status.includes('Fejl') || status.includes('Error') && (
+      {(status.includes('Fejl') || status.includes('Error')) && (
         <div className="max-w-md mx-auto mb-8 text-center">
           <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-2xl p-6">
             <div className="text-red-600 text-4xl mb-3">⚠️</div>
@@ -79,31 +83,34 @@ export default function MainContent({
         </div>
       )}
 
+      {/* Main Content */}
       {transactions.length > 0 && (
         <div className="space-y-10 sm:space-y-12">
           <TransactionTable 
             transactions={filteredTransactions} 
+            onCategoryFilter={onCategoryClick}
             onDelete={onDelete}
             onEdit={onEdit}
             onDuplicate={onDuplicate}
           />
           
           <BudgetVisualizer 
-            transactions={filteredTransactions} 
+            transactions={transactions} 
+            onCategoryClick={onCategoryClick} 
             onAskAI={onAskAI} 
           />
           
-          <RecurringTransactions transactions={filteredTransactions} />
+          <RecurringTransactions transactions={transactions} />
           
           <MonthlyOverview 
-            transactions={filteredTransactions} 
+            transactions={transactions} 
             onMonthClick={onMonthClick} 
             selectedMonth={selectedMonth} 
           />
           
-          <SmartInsights transactions={filteredTransactions} />
-          <BudgetGoals transactions={filteredTransactions} />
-          <SmartBudgetGenerator transactions={filteredTransactions} onAskAI={onAskAI} />
+          <SmartInsights transactions={transactions} onAskAI={onAskAI} />
+          <BudgetGoals transactions={transactions} />
+          <SmartBudgetGenerator transactions={transactions} onAskAI={onAskAI} />
           <AddTransaction onAdd={(t) => setTransactions([...transactions, t])} />
         </div>
       )}
@@ -117,7 +124,15 @@ export default function MainContent({
         </div>
       )}
 
-      {showAIChat && <AIChat transactions={transactions} onClose={onCloseAIChat} />}
+      {/* AI Chat Modal */}
+      {showAIChat && (
+        <AIChat 
+          transactions={transactions} 
+          onClose={onCloseAIChat}
+          initialPrompt={initialAIPrompt}
+          onPromptSent={onPromptSent}
+        />
+      )}
       
       {editingTransaction && (
         <EditTransactionModal

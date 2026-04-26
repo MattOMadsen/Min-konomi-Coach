@@ -1,171 +1,267 @@
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useGrokAI } from '../hooks/useGrokAI';
+import { categorizeTransaction } from '../lib/categoryUtils'; // juster stien hvis nødvendigt
 import type { Transaction } from '../types';
-import { categorizeTransaction } from '../utils/categorize';
 
-interface Props {
+interface Message {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  usedGrok?: boolean;
+}
+
+interface AIChatProps {
   transactions: Transaction[];
+  isOpen: boolean;
   onClose: () => void;
   initialPrompt?: string | null;
   onPromptSent?: () => void;
 }
 
-type Message = {
-  role: 'user' | 'assistant';
-  content: string;
-};
-
-const STORAGE_KEY = 'min-okonomi-coach-chat';
-
-export default function AIChat({ transactions, onClose, initialPrompt, onPromptSent }: Props) {
-  const [messages, setMessages] = useState<Message[]>([
-    { 
-      role: 'assistant', 
-      content: 'Hej! Jeg er din økonomi-coach. Spørg mig om dine udgifter, besparelser eller budgetmål.' 
-    }
-  ]);
+export default function AIChat({ 
+  transactions, 
+  isOpen, 
+  onClose, 
+  initialPrompt, 
+  onPromptSent 
+}: AIChatProps) {
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  
+  const { callGrok, isLoading: isGrokLoading, hasApiKey, error } = useGrokAI();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-
+  // Auto-scroll til nyeste besked
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) setMessages(JSON.parse(saved));
-    scrollToBottom();
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
-    scrollToBottom();
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Send initialPrompt automatisk når chatten åbnes
+  // Håndter initial prompt (f.eks. fra "Analyser min økonomi")
   useEffect(() => {
-    if (initialPrompt && !isLoading) {
-      const userMsg = initialPrompt;
-      const newMessages: Message[] = [...messages, { role: 'user', content: userMsg }];
-      setMessages(newMessages);
-      
-      // Send svaret automatisk (simuleret for nu)
-      setTimeout(() => {
-        const lower = userMsg.toLowerCase();
-        let reply = '';
+    if (initialPrompt && isOpen && !isProcessing) {
+      const sendInitial = async () => {
+        const userMessage: Message = {
+          id: Date.now().toString(),
+          role: 'user',
+          content: initialPrompt,
+        };
+        setMessages(prev => [...prev, userMessage]);
+        
+        if (onPromptSent) onPromptSent();
 
-        const categoryMap = new Map<string, number>();
-        transactions.forEach(t => {
-          if (t.amount >= 0) return;
-          const cat = categorizeTransaction(t.description);
-          categoryMap.set(cat, (categoryMap.get(cat) || 0) + Math.abs(t.amount));
-        });
-        const topCategories = Array.from(categoryMap.entries()).sort((a, b) => b[1] - a[1]).slice(0, 3);
-
-        if (lower.includes('fuld') || lower.includes('analyse') || lower.includes('budget')) {
-          reply = `Her er din fulde økonomiske analyse:\n\n`;
-          reply += `• **Anbefalet månedligt budget**: ${Math.round(topCategories.reduce((sum, [, amt]) => sum + amt, 0) * 1.25).toLocaleString('da-DK')} kr\n`;
-          reply += `• **Realistisk opsparing**: ${Math.round(topCategories.reduce((sum, [, amt]) => sum + amt, 0) * 0.25).toLocaleString('da-DK')} kr\n\n`;
-          reply += `**Top anbefalinger:**\n`;
-          topCategories.forEach(([cat, amount]) => {
-            reply += `• Reducer ${cat} med 20-30% → spar ca. ${Math.round(amount * 0.25).toLocaleString('da-DK')} kr\n`;
-          });
-        } else {
-          reply = `Tak for dit spørgsmål! Jeg har modtaget din anmodning og analyserer dine data.`;
-        }
-
-        setMessages([...newMessages, { role: 'assistant', content: reply }]);
-      }, 800);
-
-      if (onPromptSent) onPromptSent();
+        await generateResponse(initialPrompt, true);
+      };
+      sendInitial();
     }
-  }, [initialPrompt]);
+  }, [initialPrompt, isOpen]);
 
-  const sendMessage = async () => {
-    if (!input.trim() || isLoading) return;
+  // Gem chat-historik i localStorage
+  useEffect(() => {
+    if (messages.length > 0) {
+      localStorage.setItem('min-okonomi-coach-chat', JSON.stringify(messages));
+    }
+  }, [messages]);
 
-    const userMsg = input.trim();
-    const newMessages: Message[] = [...messages, { role: 'user', content: userMsg }];
-    setMessages(newMessages);
-    setInput('');
-    setIsLoading(true);
+  // Indlæs historik ved mount
+  useEffect(() => {
+    const saved = localStorage.getItem('min-okonomi-coach-chat');
+    if (saved) {
+      try {
+        setMessages(JSON.parse(saved));
+      } catch (_) {}
+    }
+  }, []);
 
-    const lower = userMsg.toLowerCase();
-    let reply = '';
+  const generateLocalResponse = (prompt: string): string => {
+    const lowerPrompt = prompt.toLowerCase();
+    const expenses = transactions.filter(t => t.amount < 0);
+    const totalExpenses = Math.abs(expenses.reduce((sum, t) => sum + t.amount, 0));
+    const income = transactions.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0);
 
+    // Top kategorier
     const categoryMap = new Map<string, number>();
-    transactions.forEach(t => {
-      if (t.amount >= 0) return;
+    expenses.forEach(t => {
       const cat = categorizeTransaction(t.description);
       categoryMap.set(cat, (categoryMap.get(cat) || 0) + Math.abs(t.amount));
     });
-    const topCategories = Array.from(categoryMap.entries()).sort((a, b) => b[1] - a[1]).slice(0, 3);
+    
+    const topCategories = Array.from(categoryMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
 
-    if (lower.includes('spare') || lower.includes('besparelse')) {
-      reply = `Dine bedste besparelsesmuligheder:\n\n`;
-      topCategories.forEach(([cat, amount]) => {
-        reply += `• **${cat}**: ${amount.toLocaleString('da-DK')} kr\n`;
-      });
-      reply += `\nMit bedste råd: Reducer takeaway og café med 30-40% – det kan give dig 2.000-3.500 kr ekstra om måneden.`;
-    } 
-    else if (lower.includes('største') || lower.includes('hvor bruger')) {
+    if (lowerPrompt.includes('fuld') || lowerPrompt.includes('analyse') || lowerPrompt.includes('budget')) {
+      let response = `Her er en fuld analyse af din økonomi:\n\n`;
+      response += `**Indtægter:** ${income.toLocaleString('da-DK')} kr\n`;
+      response += `**Udgifter:** ${totalExpenses.toLocaleString('da-DK')} kr\n`;
+      response += `**Balance:** ${(income - totalExpenses).toLocaleString('da-DK')} kr\n\n`;
+      
       if (topCategories.length > 0) {
-        reply = `Dine største udgiftskategorier:\n\n`;
+        response += `**Dine største udgiftsposter:**\n`;
         topCategories.forEach(([cat, amount], i) => {
-          reply += `${i + 1}. ${cat} — ${amount.toLocaleString('da-DK')} kr\n`;
+          const percent = totalExpenses > 0 ? Math.round((amount / totalExpenses) * 100) : 0;
+          response += `${i + 1}. ${cat}: ${amount.toLocaleString('da-DK')} kr (${percent}%)\n`;
         });
-      } else {
-        reply = 'Ingen udgifter fundet endnu.';
       }
-    } 
-    else if (lower.includes('balance') || lower.includes('oversigt')) {
-      const income = transactions.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0);
-      const expenses = Math.abs(transactions.filter(t => t.amount < 0).reduce((sum, t) => sum + t.amount, 0));
-      reply = `Din økonomiske oversigt:\n\nIndtægter: +${income.toLocaleString('da-DK')} kr\nUdgifter: -${expenses.toLocaleString('da-DK')} kr\n**Saldo: ${income - expenses} kr**`;
-    } 
-    else {
-      reply = `Tak for dit spørgsmål! Jeg kan hjælpe med:\n• "Hvad kan jeg spare på?"\n• "Hvad er mine største udgifter?"\n• "Vis min balance"`;
+      
+      response += `\n**Anbefaling:** Du kan potentielt spare 15-25% på de største kategorier ved at justere vaner.`;
+      return response;
     }
 
-    setMessages([...newMessages, { role: 'assistant', content: reply }]);
-    setIsLoading(false);
+    if (lowerPrompt.includes('spare') || lowerPrompt.includes('besparelse')) {
+      return `Baseret på dine data kan du realistisk spare ${Math.round(totalExpenses * 0.2).toLocaleString('da-DK')} kr om måneden ved at reducere de største poster med 20%. Vil du have konkrete forslag til en bestemt kategori?`;
+    }
+
+    if (lowerPrompt.includes('største') || lowerPrompt.includes('hvor bruger')) {
+      if (topCategories.length === 0) return "Jeg har ikke nok data til at vise dine største udgifter endnu.";
+      
+      let response = `Dine største udgiftsposter er:\n\n`;
+      topCategories.forEach(([cat, amount], i) => {
+        response += `${i + 1}. **${cat}** — ${amount.toLocaleString('da-DK')} kr\n`;
+      });
+      return response;
+    }
+
+    // Standard svar
+    return `Tak for dit spørgsmål! Jeg har analyseret dine ${transactions.length} transaktioner. Hvordan kan jeg hjælpe dig mere specifikt med din økonomi?`;
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
+  const generateResponse = async (prompt: string, isInitial = false) => {
+    setIsProcessing(true);
+
+    let responseContent = '';
+    let usedGrok = false;
+
+    // Forsøg rigtig Grok først
+    if (hasApiKey) {
+      try {
+        const result = await callGrok(prompt);
+        if (result.usedGrok && result.content) {
+          responseContent = result.content;
+          usedGrok = true;
+        }
+      } catch (e) {
+        console.warn('Grok fejlede, bruger lokal fallback');
+      }
+    }
+
+    // Fallback til lokal logik
+    if (!responseContent) {
+      responseContent = generateLocalResponse(prompt);
+      usedGrok = false;
+    }
+
+    const assistantMessage: Message = {
+      id: (Date.now() + 1).toString(),
+      role: 'assistant',
+      content: responseContent,
+      usedGrok,
+    };
+
+    setMessages(prev => [...prev, assistantMessage]);
+    setIsProcessing(false);
+  };
+
+  const sendMessage = async () => {
+    if (!input.trim() || isProcessing) return;
+
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: input.trim(),
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    const currentInput = input.trim();
+    setInput('');
+
+    await generateResponse(currentInput);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
     }
   };
 
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed bottom-24 right-8 w-96 h-[520px] bg-white rounded-3xl shadow-2xl flex flex-col border border-gray-100 overflow-hidden z-[100]">
-      <div className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-6 py-4 flex items-center justify-between">
+    <div className="fixed bottom-20 right-4 sm:right-6 w-[380px] sm:w-[420px] h-[520px] bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-gray-200 dark:border-slate-700 flex flex-col z-50 overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-t-3xl">
         <div className="flex items-center gap-3">
-          <span className="text-2xl">Chat</span>
+          <div className="w-9 h-9 bg-white/20 rounded-2xl flex items-center justify-center text-xl">🧠</div>
           <div>
-            <p className="font-semibold">Min Økonomi Coach</p>
-            <p className="text-xs opacity-75">Smart lokal AI • Historik gemt</p>
+            <div className="font-semibold text-lg">Min Økonomi Coach</div>
+            <div className="text-xs opacity-80 flex items-center gap-1.5">
+              {hasApiKey ? (
+                <span className="flex items-center gap-1">✨ Powered by Grok</span>
+              ) : (
+                <span className="flex items-center gap-1">Lokal AI (tilføj key for Grok)</span>
+              )}
+            </div>
           </div>
         </div>
-        <button onClick={onClose} className="text-2xl leading-none hover:scale-110 transition">×</button>
+        <button 
+          onClick={onClose}
+          className="text-white/80 hover:text-white transition-colors text-2xl leading-none"
+        >
+          ×
+        </button>
       </div>
 
-      <div className="flex-1 p-4 overflow-y-auto space-y-4 bg-gray-50">
-        {messages.map((msg, i) => (
-          <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[85%] px-5 py-4 rounded-3xl text-[15px] leading-relaxed shadow-sm whitespace-pre-wrap ${msg.role === 'user' ? 'bg-emerald-600 text-white' : 'bg-white border border-gray-100'}`}>
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50 dark:bg-slate-950">
+        {messages.length === 0 && (
+          <div className="text-center text-gray-500 dark:text-gray-400 mt-12">
+            <div className="text-5xl mb-4">💬</div>
+            <p className="font-medium">Hej! Jeg er din personlige økonomi-coach.</p>
+            <p className="text-sm mt-1">Spørg mig om alt fra budget til besparelser.</p>
+          </div>
+        )}
+
+        {messages.map((msg) => (
+          <div
+            key={msg.id}
+            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+          >
+            <div
+              className={`max-w-[82%] px-4 py-3 rounded-3xl text-sm whitespace-pre-wrap ${
+                msg.role === 'user'
+                  ? 'bg-emerald-600 text-white rounded-br-none'
+                  : 'bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100 rounded-bl-none shadow-sm border border-gray-100 dark:border-slate-700'
+              }`}
+            >
               {msg.content}
+              {msg.usedGrok && (
+                <div className="text-[10px] opacity-60 mt-1.5 flex items-center gap-1">
+                  ✨ Grok
+                </div>
+              )}
             </div>
           </div>
         ))}
-        {isLoading && (
+
+        {(isProcessing || isGrokLoading) && (
           <div className="flex justify-start">
-            <div className="bg-white shadow-sm border px-4 py-3 rounded-3xl text-sm">Tænker...</div>
+            <div className="bg-white dark:bg-slate-800 px-4 py-3 rounded-3xl rounded-bl-none shadow-sm border border-gray-100 dark:border-slate-700">
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" />
+                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce [animation-delay:0.15s]" />
+                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce [animation-delay:0.3s]" />
+                <span className="ml-1">Tænker...</span>
+              </div>
+            </div>
           </div>
         )}
+
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="p-4 border-t bg-white">
+      {/* Input */}
+      <div className="p-4 border-t border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900">
         <div className="flex gap-2">
           <input
             type="text"
@@ -173,16 +269,18 @@ export default function AIChat({ transactions, onClose, initialPrompt, onPromptS
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Skriv dit spørgsmål..."
-            className="flex-1 px-5 py-4 bg-gray-100 rounded-3xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            className="flex-1 bg-slate-100 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            disabled={isProcessing}
           />
           <button
             onClick={sendMessage}
-            disabled={isLoading || !input.trim()}
-            className="bg-emerald-600 text-white w-12 h-12 rounded-3xl flex items-center justify-center text-2xl hover:bg-emerald-700 disabled:opacity-50 transition"
+            disabled={!input.trim() || isProcessing}
+            className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-5 rounded-2xl transition-all active:scale-95"
           >
-            ↑
+            →
           </button>
         </div>
+        {error && <p className="text-xs text-red-500 mt-1.5">{error}</p>}
       </div>
     </div>
   );
