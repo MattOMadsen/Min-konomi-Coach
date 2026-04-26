@@ -1,4 +1,3 @@
-// src/components/MainContent.tsx
 import { useState } from 'react';
 import TransactionTable from './TransactionTable';
 import BudgetVisualizer from './BudgetVisualizer';
@@ -10,30 +9,37 @@ import SmartBudgetGenerator from './SmartBudgetGenerator';
 import RecurringTransactions from './RecurringTransactions';
 import AIChat from './AIChat';
 import EditTransactionModal from './EditTransactionModal';
-import DateRangeFilter from './DateRangeFilter';
 
 interface Props {
   transactions: any[];
+  filteredTransactions: any[];
   isLoading: boolean;
   progress: number;
   status: string;
+  selectedCategory: string | null;
+  onCategoryClick: (category: string) => void;
   onDelete: (index: number) => void;
   onEdit: (index: number) => void;
   onDuplicate: (index: number) => void;
-  onAskAI: () => void;
+  onAskAI: (prompt?: string) => void;
   showAIChat: boolean;
   onCloseAIChat: () => void;
   editingTransaction: any;
   onCloseEditModal: () => void;
   onSaveEdit: (updated: any, index: number) => void;
   setTransactions: (transactions: any[]) => void;
+  onMonthClick?: (month: string) => void;
+  selectedMonth?: string | null;
 }
 
 export default function MainContent({
   transactions,
+  filteredTransactions,
   isLoading,
   progress,
   status,
+  selectedCategory,
+  onCategoryClick,
   onDelete,
   onEdit,
   onDuplicate,
@@ -44,31 +50,11 @@ export default function MainContent({
   onCloseEditModal,
   onSaveEdit,
   setTransactions,
+  onMonthClick,
+  selectedMonth,
 }: Props) {
-  const [dateRange, setDateRange] = useState<{ start: string | null; end: string | null }>({ 
-    start: null, 
-    end: null 
-  });
-
-  // Filtrer transaktioner baseret på dato
-  const filteredTransactions = transactions.filter(t => {
-    if (!dateRange.start && !dateRange.end) return true;
-    
-    const tDate = t.date;
-    
-    if (dateRange.start && tDate < dateRange.start) return false;
-    if (dateRange.end && tDate > dateRange.end) return false;
-    
-    return true;
-  });
-
-  const handleDateRangeChange = (start: string | null, end: string | null) => {
-    setDateRange({ start, end });
-  };
-
   return (
     <>
-      {/* Progress + Fejlhåndtering */}
       {isLoading && (
         <div className="max-w-md mx-auto mb-8">
           <div className="h-2 bg-gray-200 dark:bg-slate-700 rounded-full overflow-hidden mb-2">
@@ -93,17 +79,8 @@ export default function MainContent({
         </div>
       )}
 
-      {/* Main Content */}
       {transactions.length > 0 && (
         <div className="space-y-10 sm:space-y-12">
-          
-          {/* Kun ÉN Date Range Filter */}
-          <DateRangeFilter 
-            onDateRangeChange={handleDateRangeChange}
-            currentStart={dateRange.start}
-            currentEnd={dateRange.end}
-          />
-
           <TransactionTable 
             transactions={filteredTransactions} 
             onDelete={onDelete}
@@ -118,7 +95,11 @@ export default function MainContent({
           
           <RecurringTransactions transactions={filteredTransactions} />
           
-          <MonthlyOverview transactions={filteredTransactions} />
+          <MonthlyOverview 
+            transactions={filteredTransactions} 
+            onMonthClick={onMonthClick} 
+            selectedMonth={selectedMonth} 
+          />
           
           <SmartInsights transactions={filteredTransactions} />
           <BudgetGoals transactions={filteredTransactions} />
@@ -136,7 +117,6 @@ export default function MainContent({
         </div>
       )}
 
-      {/* Modals */}
       {showAIChat && <AIChat transactions={transactions} onClose={onCloseAIChat} />}
       
       {editingTransaction && (

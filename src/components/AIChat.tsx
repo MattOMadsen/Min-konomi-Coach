@@ -5,6 +5,8 @@ import { categorizeTransaction } from '../utils/categorize';
 interface Props {
   transactions: Transaction[];
   onClose: () => void;
+  initialPrompt?: string | null;
+  onPromptSent?: () => void;
 }
 
 type Message = {
@@ -14,7 +16,7 @@ type Message = {
 
 const STORAGE_KEY = 'min-okonomi-coach-chat';
 
-export default function AIChat({ transactions, onClose }: Props) {
+export default function AIChat({ transactions, onClose, initialPrompt, onPromptSent }: Props) {
   const [messages, setMessages] = useState<Message[]>([
     { 
       role: 'assistant', 
@@ -38,6 +40,45 @@ export default function AIChat({ transactions, onClose }: Props) {
     scrollToBottom();
   }, [messages]);
 
+  // Send initialPrompt automatisk når chatten åbnes
+  useEffect(() => {
+    if (initialPrompt && !isLoading) {
+      const userMsg = initialPrompt;
+      const newMessages: Message[] = [...messages, { role: 'user', content: userMsg }];
+      setMessages(newMessages);
+      
+      // Send svaret automatisk (simuleret for nu)
+      setTimeout(() => {
+        const lower = userMsg.toLowerCase();
+        let reply = '';
+
+        const categoryMap = new Map<string, number>();
+        transactions.forEach(t => {
+          if (t.amount >= 0) return;
+          const cat = categorizeTransaction(t.description);
+          categoryMap.set(cat, (categoryMap.get(cat) || 0) + Math.abs(t.amount));
+        });
+        const topCategories = Array.from(categoryMap.entries()).sort((a, b) => b[1] - a[1]).slice(0, 3);
+
+        if (lower.includes('fuld') || lower.includes('analyse') || lower.includes('budget')) {
+          reply = `Her er din fulde økonomiske analyse:\n\n`;
+          reply += `• **Anbefalet månedligt budget**: ${Math.round(topCategories.reduce((sum, [, amt]) => sum + amt, 0) * 1.25).toLocaleString('da-DK')} kr\n`;
+          reply += `• **Realistisk opsparing**: ${Math.round(topCategories.reduce((sum, [, amt]) => sum + amt, 0) * 0.25).toLocaleString('da-DK')} kr\n\n`;
+          reply += `**Top anbefalinger:**\n`;
+          topCategories.forEach(([cat, amount]) => {
+            reply += `• Reducer ${cat} med 20-30% → spar ca. ${Math.round(amount * 0.25).toLocaleString('da-DK')} kr\n`;
+          });
+        } else {
+          reply = `Tak for dit spørgsmål! Jeg har modtaget din anmodning og analyserer dine data.`;
+        }
+
+        setMessages([...newMessages, { role: 'assistant', content: reply }]);
+      }, 800);
+
+      if (onPromptSent) onPromptSent();
+    }
+  }, [initialPrompt]);
+
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
 
@@ -50,7 +91,6 @@ export default function AIChat({ transactions, onClose }: Props) {
     const lower = userMsg.toLowerCase();
     let reply = '';
 
-    // Beregn top kategorier
     const categoryMap = new Map<string, number>();
     transactions.forEach(t => {
       if (t.amount >= 0) return;
@@ -60,15 +100,15 @@ export default function AIChat({ transactions, onClose }: Props) {
     const topCategories = Array.from(categoryMap.entries()).sort((a, b) => b[1] - a[1]).slice(0, 3);
 
     if (lower.includes('spare') || lower.includes('besparelse')) {
-      reply = `💡 **Dine bedste besparelsesmuligheder:**\n\n`;
+      reply = `Dine bedste besparelsesmuligheder:\n\n`;
       topCategories.forEach(([cat, amount]) => {
         reply += `• **${cat}**: ${amount.toLocaleString('da-DK')} kr\n`;
       });
-      reply += `\n**Mit bedste råd:** Reducer takeaway og café med 30-40% – det kan give dig 2.000-3.500 kr ekstra om måneden.`;
+      reply += `\nMit bedste råd: Reducer takeaway og café med 30-40% – det kan give dig 2.000-3.500 kr ekstra om måneden.`;
     } 
     else if (lower.includes('største') || lower.includes('hvor bruger')) {
       if (topCategories.length > 0) {
-        reply = `🔥 **Dine største udgiftskategorier:**\n\n`;
+        reply = `Dine største udgiftskategorier:\n\n`;
         topCategories.forEach(([cat, amount], i) => {
           reply += `${i + 1}. ${cat} — ${amount.toLocaleString('da-DK')} kr\n`;
         });
@@ -79,7 +119,7 @@ export default function AIChat({ transactions, onClose }: Props) {
     else if (lower.includes('balance') || lower.includes('oversigt')) {
       const income = transactions.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0);
       const expenses = Math.abs(transactions.filter(t => t.amount < 0).reduce((sum, t) => sum + t.amount, 0));
-      reply = `📊 **Din økonomiske oversigt:**\n\nIndtægter: +${income.toLocaleString('da-DK')} kr\nUdgifter: -${expenses.toLocaleString('da-DK')} kr\n**Saldo: ${income - expenses} kr**`;
+      reply = `Din økonomiske oversigt:\n\nIndtægter: +${income.toLocaleString('da-DK')} kr\nUdgifter: -${expenses.toLocaleString('da-DK')} kr\n**Saldo: ${income - expenses} kr**`;
     } 
     else {
       reply = `Tak for dit spørgsmål! Jeg kan hjælpe med:\n• "Hvad kan jeg spare på?"\n• "Hvad er mine største udgifter?"\n• "Vis min balance"`;
@@ -100,7 +140,7 @@ export default function AIChat({ transactions, onClose }: Props) {
     <div className="fixed bottom-24 right-8 w-96 h-[520px] bg-white rounded-3xl shadow-2xl flex flex-col border border-gray-100 overflow-hidden z-[100]">
       <div className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <span className="text-2xl">💬</span>
+          <span className="text-2xl">Chat</span>
           <div>
             <p className="font-semibold">Min Økonomi Coach</p>
             <p className="text-xs opacity-75">Smart lokal AI • Historik gemt</p>
