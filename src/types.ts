@@ -1,12 +1,16 @@
-export interface Transaction {
-  date: string;
-  description: string;
-  amount: number;
-  category?: string;
+// src/types.ts
+// ... din eksisterende kode ...
+
+// NYE TILFØJELSER TIL KATEGORI DRILL-DOWN
+export interface CategorySummary {
+  category: string;
+  total: number;
+  count: number;
+  transactions: Transaction[];
+  average: number;
 }
 
-export interface BankParser {
-  name: string;
-  detect: (filename: string) => boolean;
-  parse: (csvText: string) => Transaction[];
+export interface SelectedCategory {
+  category: string;
+  title?: string;
 }

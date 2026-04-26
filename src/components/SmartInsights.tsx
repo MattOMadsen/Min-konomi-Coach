@@ -1,12 +1,16 @@
-import { useMemo } from 'react';
+// src/components/SmartInsights.tsx
+import { useMemo, useState } from 'react';
 import type { Transaction } from '../types';
 import { categorizeTransaction } from '../utils/categorize';
+import CategoryDetailModal from './CategoryDetailModal';
 
 interface Props {
   transactions: Transaction[];
 }
 
 export default function SmartInsights({ transactions }: Props) {
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
   const insights = useMemo(() => {
     const map = new Map<string, number>();
 
@@ -18,7 +22,7 @@ export default function SmartInsights({ transactions }: Props) {
 
     return Array.from(map.entries())
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 3);
+      .slice(0, 5);
   }, [transactions]);
 
   if (insights.length === 0) return null;
@@ -27,31 +31,17 @@ export default function SmartInsights({ transactions }: Props) {
 
   const getAdvice = (category: string): string => {
     const lower = category.toLowerCase();
-
-    if (lower.includes('husleje') || lower.includes('leje')) {
-      return 'Husleje er en fast udgift. Overvej om du kan finde en billigere bolig på sigt.';
-    }
-    if (lower.includes('takeaway')) {
-      return 'Prøv at lave mad hjemme 3-4 aftener om ugen – det kan spare dig mange penge.';
-    }
-    if (lower.includes('dagligvarer')) {
-      return 'Lav indkøbsliste og køb ind én gang om ugen for at undgå impulskøb.';
-    }
-    if (lower.includes('café') || lower.includes('coffee')) {
-      return 'Lav kaffe hjemme – det kan spare dig 800-1500 kr om måneden.';
-    }
-    if (lower.includes('benzin')) {
-      return 'Overvej samkørsel eller cykel på korte ture.';
-    }
-    if (lower.includes('abonnement')) {
-      return 'Gennemgå dine abonnementer – mange bliver glemt og brugt sjældent.';
-    }
-    
+    if (lower.includes('husleje') || lower.includes('leje')) return 'Husleje er en fast udgift. Overvej om du kan finde en billigere bolig på sigt.';
+    if (lower.includes('takeaway')) return 'Prøv at lave mad hjemme 3-4 aftener om ugen – det kan spare dig mange penge.';
+    if (lower.includes('dagligvarer')) return 'Lav indkøbsliste og køb ind én gang om ugen for at undgå impulskøb.';
+    if (lower.includes('café') || lower.includes('coffee')) return 'Lav kaffe hjemme – det kan spare dig 800-1500 kr om måneden.';
+    if (lower.includes('benzin')) return 'Overvej samkørsel eller cykel på korte ture.';
+    if (lower.includes('abonnement')) return 'Gennemgå dine abonnementer – mange bliver glemt og brugt sjældent.';
     return 'Overvej om dette er en fast eller variabel udgift.';
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-xl p-8 border border-gray-100 dark:border-slate-800">
+    <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-xl p-8 border border-gray-100 dark:border-slate-700">
       <h3 className="text-2xl font-bold mb-6 dark:text-white">🔥 Dine største udgifter</h3>
 
       <div className="space-y-6">
@@ -60,7 +50,11 @@ export default function SmartInsights({ transactions }: Props) {
           const advice = getAdvice(category);
 
           return (
-            <div key={index} className="border-l-4 border-emerald-500 pl-4">
+            <div 
+              key={index} 
+              onClick={() => setSelectedCategory(category)}
+              className="border-l-4 border-emerald-500 pl-4 cursor-pointer hover:bg-emerald-50 dark:hover:bg-emerald-950 p-3 -mx-3 rounded-2xl transition-all"
+            >
               <div className="flex justify-between items-start">
                 <div>
                   <div className="font-semibold text-lg dark:text-white">{category}</div>
@@ -79,6 +73,14 @@ export default function SmartInsights({ transactions }: Props) {
           );
         })}
       </div>
+
+      {selectedCategory && (
+        <CategoryDetailModal
+          category={selectedCategory}
+          transactions={transactions}
+          onClose={() => setSelectedCategory(null)}
+        />
+      )}
     </div>
   );
 }

@@ -1,3 +1,4 @@
+// src/utils/exportToPDF.ts
 import type { Transaction } from '../types';
 import { categorizeTransaction } from './categorize';
 
@@ -20,6 +21,8 @@ export const exportToPDF = (transactions: Transaction[]) => {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5);
 
+  const maxAmount = Math.max(...topCategories.map(([, amount]) => amount), 1);
+
   const html = `
     <html>
       <head>
@@ -35,12 +38,16 @@ export const exportToPDF = (transactions: Transaction[]) => {
           .summary-item .value { font-size: 28px; font-weight: 700; }
           .positive { color: #10b981; }
           .negative { color: #ef4444; }
+          .top-categories { background: #f8fafc; padding: 25px; border-radius: 16px; margin: 40px 0; }
+          .category-row { display: flex; align-items: center; gap: 15px; padding: 14px 0; border-bottom: 1px solid #e2e8f0; }
+          .category-row:last-child { border-bottom: none; }
+          .category-name { font-weight: 600; width: 160px; flex-shrink: 0; }
+          .bar-container { flex: 1; background: #e2e8f0; border-radius: 9999px; height: 14px; overflow: hidden; }
+          .bar { height: 100%; background: linear-gradient(90deg, #10b981, #34d399); border-radius: 9999px; transition: width 0.3s; }
+          .category-amount { font-weight: 700; color: #ef4444; width: 120px; text-align: right; flex-shrink: 0; }
           table { width: 100%; border-collapse: collapse; margin-top: 30px; }
           th, td { padding: 16px 12px; text-align: left; border-bottom: 1px solid #e2e8f0; }
           th { background: #f1f5f9; font-weight: 600; color: #475569; }
-          .top-categories { background: #f8fafc; padding: 25px; border-radius: 16px; margin: 40px 0; }
-          .category-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #e2e8f0; }
-          .category-row:last-child { border-bottom: none; }
           .footer { margin-top: 60px; font-size: 13px; color: #64748b; text-align: center; }
         </style>
       </head>
@@ -71,14 +78,20 @@ export const exportToPDF = (transactions: Transaction[]) => {
           </div>
         </div>
 
-        <h2 style="font-size: 22px; margin-bottom: 20px;">Top 5 udgiftskategorier</h2>
+        <h2 style="font-size: 22px; margin-bottom: 20px;">📊 Top 5 udgiftskategorier</h2>
         <div class="top-categories">
-          ${topCategories.length > 0 ? topCategories.map(([cat, amount]) => `
-            <div class="category-row">
-              <span style="font-weight: 600;">${cat}</span>
-              <span style="font-weight: 700; color: #ef4444;">-${amount.toLocaleString('da-DK')} kr</span>
-            </div>
-          `).join('') : '<p>Ingen udgifter fundet.</p>'}
+          ${topCategories.length > 0 ? topCategories.map(([cat, amount]) => {
+            const percent = Math.round((amount / maxAmount) * 100);
+            return `
+              <div class="category-row">
+                <span class="category-name">${cat}</span>
+                <div class="bar-container">
+                  <div class="bar" style="width: ${percent}%"></div>
+                </div>
+                <span class="category-amount">-${amount.toLocaleString('da-DK')} kr</span>
+              </div>
+            `;
+          }).join('') : '<p>Ingen udgifter fundet.</p>'}
         </div>
 
         <h2 style="font-size: 22px; margin: 40px 0 20px;">Alle transaktioner (${transactions.length} stk.)</h2>
