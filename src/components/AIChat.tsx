@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+// src/components/AIChat.tsx
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useGrokAI } from '../hooks/useGrokAI';
-import { categorizeTransaction } from '../lib/categoryUtils'; // juster stien hvis nødvendigt
+import { categorizeTransaction } from '../utils/categorize'; // ← KORREKT STI
 import type { Transaction } from '../types';
 
 interface Message {
@@ -37,33 +38,34 @@ export default function AIChat({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Håndter initial prompt (f.eks. fra "Analyser min økonomi")
+  // === INITIAL PROMPT (f.eks. "Få fuld AI-analyse") ===
   useEffect(() => {
-    if (initialPrompt && isOpen && !isProcessing) {
-      const sendInitial = async () => {
-        const userMessage: Message = {
-          id: Date.now().toString(),
-          role: 'user',
-          content: initialPrompt,
-        };
-        setMessages(prev => [...prev, userMessage]);
-        
-        if (onPromptSent) onPromptSent();
+    if (!initialPrompt || !isOpen || messages.length > 0) return;
 
-        await generateResponse(initialPrompt, true);
+    const sendInitial = async () => {
+      const userMessage: Message = {
+        id: Date.now().toString(),
+        role: 'user',
+        content: initialPrompt,
       };
-      sendInitial();
-    }
-  }, [initialPrompt, isOpen]);
+      setMessages(prev => [...prev, userMessage]);
+      
+      if (onPromptSent) onPromptSent();
 
-  // Gem chat-historik i localStorage
+      await generateResponse(initialPrompt, true);
+    };
+
+    sendInitial();
+  }, [initialPrompt, isOpen, messages.length, onPromptSent]);
+
+  // Gem chat-historik
   useEffect(() => {
     if (messages.length > 0) {
       localStorage.setItem('min-okonomi-coach-chat', JSON.stringify(messages));
     }
   }, [messages]);
 
-  // Indlæs historik ved mount
+  // Indlæs gemt chat ved start
   useEffect(() => {
     const saved = localStorage.getItem('min-okonomi-coach-chat');
     if (saved) {
@@ -73,13 +75,13 @@ export default function AIChat({
     }
   }, []);
 
-  const generateLocalResponse = (prompt: string): string => {
+  // Lokal fallback-analyse
+  const generateLocalResponse = useCallback((prompt: string): string => {
     const lowerPrompt = prompt.toLowerCase();
     const expenses = transactions.filter(t => t.amount < 0);
     const totalExpenses = Math.abs(expenses.reduce((sum, t) => sum + t.amount, 0));
     const income = transactions.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0);
 
-    // Top kategorier
     const categoryMap = new Map<string, number>();
     expenses.forEach(t => {
       const cat = categorizeTransaction(t.description);
@@ -91,7 +93,7 @@ export default function AIChat({
       .slice(0, 5);
 
     if (lowerPrompt.includes('fuld') || lowerPrompt.includes('analyse') || lowerPrompt.includes('budget')) {
-      let response = `Her er en fuld analyse af din økonomi:\n\n`;
+      let response = `Her er en **fuld analyse** af din økonomi:\n\n`;
       response += `**Indtægter:** ${income.toLocaleString('da-DK')} kr\n`;
       response += `**Udgifter:** ${totalExpenses.toLocaleString('da-DK')} kr\n`;
       response += `**Balance:** ${(income - totalExpenses).toLocaleString('da-DK')} kr\n\n`;
@@ -109,30 +111,29 @@ export default function AIChat({
     }
 
     if (lowerPrompt.includes('spare') || lowerPrompt.includes('besparelse')) {
-      return `Baseret på dine data kan du realistisk spare ${Math.round(totalExpenses * 0.2).toLocaleString('da-DK')} kr om måneden ved at reducere de største poster med 20%. Vil du have konkrete forslag til en bestemt kategori?`;
+      return `Du kan realistisk spare ca. **${Math.round(totalExpenses * 0.20).toLocaleString('da-DK')} kr** om måneden.`;
     }
 
     if (lowerPrompt.includes('største') || lowerPrompt.includes('hvor bruger')) {
       if (topCategories.length === 0) return "Jeg har ikke nok data til at vise dine største udgifter endnu.";
-      
-      let response = `Dine største udgiftsposter er:\n\n`;
+      let response = `**Dine største udgiftsposter:**\n\n`;
       topCategories.forEach(([cat, amount], i) => {
         response += `${i + 1}. **${cat}** — ${amount.toLocaleString('da-DK')} kr\n`;
       });
       return response;
     }
 
-    // Standard svar
-    return `Tak for dit spørgsmål! Jeg har analyseret dine ${transactions.length} transaktioner. Hvordan kan jeg hjælpe dig mere specifikt med din økonomi?`;
-  };
+    return `Tak for dit spørgsmål! Jeg har analyseret dine ${transactions.length} transaktioner. Hvordan kan jeg hjælpe dig mere specifikt?`;
+  }, [transactions]);
 
-  const generateResponse = async (prompt: string, isInitial = false) => {
+  // Hoved-funktion til svar
+  const generateResponse = useCallback(async (prompt: string, isInitial = false) => {
     setIsProcessing(true);
 
     let responseContent = '';
     let usedGrok = false;
 
-    // Forsøg rigtig Grok først
+    // Prøv Grok først
     if (hasApiKey) {
       try {
         const result = await callGrok(prompt);
@@ -145,7 +146,7 @@ export default function AIChat({
       }
     }
 
-    // Fallback til lokal logik
+    // Lokal fallback
     if (!responseContent) {
       responseContent = generateLocalResponse(prompt);
       usedGrok = false;
@@ -160,7 +161,7 @@ export default function AIChat({
 
     setMessages(prev => [...prev, assistantMessage]);
     setIsProcessing(false);
-  };
+  }, [hasApiKey, callGrok, generateLocalResponse]);
 
   const sendMessage = async () => {
     if (!input.trim() || isProcessing) return;
